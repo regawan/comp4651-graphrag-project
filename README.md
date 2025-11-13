@@ -2,6 +2,7 @@
 
 ## Model provider: Google Vertex AI
 
-To authenticate model usage:
+To use and authenticate model:
 
-`export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
+`pip install neo4j_graphrag[google]
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
