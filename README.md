@@ -4,5 +4,5 @@
 
 To use and authenticate model:
 
-`pip install neo4j_graphrag[google]
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
+`pip install neo4j_graphrag[google]`  
+`export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
