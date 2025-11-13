@@ -5,6 +5,10 @@ from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from neo4j_graphrag.retrievers import VectorRetriever
 from neo4j_graphrag.generation.graphrag import GraphRAG
 
+NEO4J_URI = ""
+NEO4J_USERNAME = "neo4j"
+NEO4J_PASSWORD = "lDHDAAFTkU91TDH0echHMuVCch6KAgeBCqG0xdBsD-A"
+
 neo4j_driver = neo4j.GraphDatabase.driver(NEO4J_URI,
                                           auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
