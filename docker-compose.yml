@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/vertex-ai-service-account.json
+    volumes:
+      - /Users/paul/Programmieren/PyCharm/COMP4651-GraphRAG/plexiform-notch-478113-d0-0c739ffa1a72.json:/secrets/vertex-ai-service-account.json:ro
+    ports:
+      - "8000:8000"
