@@ -17,5 +17,5 @@ COPY . .
 # 4. Expose port for rest api (FastAPI)
 EXPOSE 8000
 
-# 5. Run app
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# 5. Run app (--workers 4 for simple uvicorn load balancing)
+CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
