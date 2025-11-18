@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import neo4j
 import vertexai
 from google.oauth2 import service_account
@@ -12,13 +14,17 @@ from backend.graphrag_config import GraphRAGConfig
 
 class GraphRAGService:
     """
-    High-level GraphRAG service, can be used as follows:
+    High-level GraphRAG service. Provides the following methods:
+    - __init__(config: GraphRAGConfig)
+    - async build_knowledge_graph_from_pdfs(pdf_file_paths: list[str])
+    - query(question: str, top_k: int = 5) -> str
+    - list_documents(limit: int = 100)
+    - delete_document(document_id: str)
 
-    # Usage:
-    config = GraphRAGConfig.from_env()
-    graphrag = GraphRAGService(config)
-
-    answer = graphrag.query("<Question>")
+    Can be used as follows:
+        | config = GraphRAGConfig.from_env()
+        | graphrag = GraphRAGService(config)
+        | answer = graphrag.query("<Question>")
     """
 
     def __init__(self, config: GraphRAGConfig) -> None:
@@ -113,15 +119,52 @@ class GraphRAGService:
         Run the KG builder pipeline with a list of PDFs and store the resulting graph in Neo4j.
         """
         # Ensure the vector index exists
-        await self.kg_builder.ensure_vector_index(
-            self.config.text_index_name,
-            dimension=embedding_dimension,
-        )
+        self._ensure_vector_index(embedding_dimension)
 
         for path in pdf_file_paths:
-            print(f"Processing PDF: {path}")
-            result = await self.kg_builder.run_async(file_path=path)
+            doc_id = Path(path).name
+
+            if self._document_exists(doc_id):
+                print(f"Skipping already ingested document: {doc_id}")
+                continue
+
+            print(f"Processing PDF: {path} (doc_id={doc_id})")
+            result = await self.kg_builder.run_async(file_path=path, document_metadata={"source_id": doc_id})
             print(f"KG builder result for {path}: {result}")
+
+
+    def _ensure_vector_index(self, dimension: int = 768):
+        """
+        Ensure the Neo4j vector index for Chunk embeddings exists. Run this once before ingesting PDFs.
+        """
+        with self.neo4j_driver.session() as session:
+            session.run(
+                """
+                CREATE VECTOR INDEX text_embeddings IF NOT EXISTS
+                FOR (c:Chunk) ON (c.embedding)
+                OPTIONS {
+                  indexConfig: {
+                    `vector.dimensions`: $dim,
+                    `vector.similarity_function`: 'cosine'
+                  }
+                }
+                """,
+                dim=dimension,
+            )
+
+
+    def _document_exists(self, doc_id: str) -> bool:
+        """
+        Return True if a Document with this id (source_id or path) exists.
+        """
+        query = """
+        MATCH (d:Document)
+        WHERE d.source_id = $doc_id OR d.path = $doc_id
+        RETURN COUNT(d) > 0 AS exists
+        """
+        with self.neo4j_driver.session() as session:
+            record = session.run(query, doc_id=doc_id).single()
+            return bool(record["exists"])
 
 
     def query(self, question: str, top_k: int = 5) -> str:
@@ -144,8 +187,8 @@ class GraphRAGService:
         Return a list of indexed documents with basic stats.
         """
         query = """
-        MATCH (c:Chunk)
-        WITH c.source_id AS doc, count(c) AS chunks
+        MATCH (d:Document)<-[:FROM_DOCUMENT]-(c:Chunk)
+        WITH coalesce(d.source_id, d.path) AS doc, count(c) AS chunks
         RETURN doc AS document_id, chunks
         ORDER BY chunks DESC
         LIMIT $limit
@@ -153,3 +196,23 @@ class GraphRAGService:
         with self.neo4j_driver.session() as session:
             result = session.run(query, limit=limit)
             return [record.data() for record in result]
+
+
+    def delete_document(self, document_id: str):
+        with self.neo4j_driver.session() as session:
+            # Delete all chunks and related KG nodes/edges of a document
+            session.run(
+                """
+                MATCH (d:Document)
+                WHERE d.source_id = $doc OR d.path = $doc
+                OPTIONAL MATCH (d)<-[:FROM_DOCUMENT]-(c:Chunk)
+                DETACH DELETE c, d
+                """,
+                doc=document_id,
+            )
+            # Cleans up orphan entity nodes (if available)
+            session.run("""
+                MATCH (e:Entity)
+                WHERE NOT (e)--()
+                DELETE e
+            """)
