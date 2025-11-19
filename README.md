@@ -7,7 +7,26 @@ To use and authenticate model:
 `pip install neo4j_graphrag[google]`  
 `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
 
+## Prerequisites
+- AWS EC2 instance (Ubuntu, t3.medium recommended)
+- SSH key (.pem file)
+- Vertex AI service account JSON in secrets/vertex-ai-service-account.json
+- .env file with environment variables
+
 ## Setup
+
+### AWS
+1. Connect to EC2
+`ssh -i "/path/to/aws-key.pem" ubuntu@<EC2_PUBLIC_IP>`
+
+2. Install Docker & Docker Compose on EC2
+```
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose
+sudo usermod -aG docker ubuntu
+```
+Note: Log out and back in for group changes to take effect.
+
 
 ### Run with docker
 1. Clone this repository.
