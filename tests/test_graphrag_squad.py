@@ -53,7 +53,7 @@ async def main():
     # Load SQuAD subset
     squad = load_dataset("squad")
 
-    # Safely select first 50 examples and convert to list of dicts
+    # Safely select first 500 examples and convert to list of dicts
     train_data_dict = squad["train"].select(range(200)).to_dict()
     train_data_list = [
         {"context": c, "question": q, "answers": a}
@@ -105,8 +105,5 @@ async def main():
     )
 
 
-# -----------------------------
-# Entry point
-# -----------------------------
 if __name__ == "__main__":
     asyncio.run(main())
