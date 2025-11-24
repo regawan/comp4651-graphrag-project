@@ -50,14 +50,24 @@ def benchmark_rag(rag_service, dataset, top_k=5):
 
 
 async def main():
-    # Load SQuAD subset (first 50 examples for speed)
+    # Load SQuAD subset
     squad = load_dataset("squad")
-    train_data = squad["train"][:50]
+
+    # Safely select first 50 examples and convert to list of dicts
+    train_data_dict = squad["train"].select(range(200)).to_dict()
+    train_data_list = [
+        {"context": c, "question": q, "answers": a}
+        for c, q, a in zip(
+            train_data_dict["context"],
+            train_data_dict["question"],
+            train_data_dict["answers"],
+        )
+    ]
 
     # Convert to documents
     documents = []
     seen_texts = set()
-    for i, item in enumerate(train_data):
+    for i, item in enumerate(train_data_list):
         context = item["context"]
         if context not in seen_texts:
             seen_texts.add(context)
@@ -73,7 +83,7 @@ async def main():
 
     # 2️⃣ Benchmark GraphRAG
     print("Running GraphRAG benchmark...")
-    em, f1, latency = benchmark_rag(graphrag_service, train_data)
+    em, f1, latency = benchmark_rag(graphrag_service, train_data_list)
     print(
         f"\nGraphRAG Results - EM: {em:.3f}, F1: {f1:.3f}, Latency: {latency:.3f}s per query"
     )
@@ -89,7 +99,7 @@ async def main():
 
     standard_rag_service = StandardRAGService(config, from_pdf=False)
     print("Running Standard RAG benchmark...")
-    em2, f1_2, latency2 = benchmark_rag(standard_rag_service, train_data)
+    em2, f1_2, latency2 = benchmark_rag(standard_rag_service, train_data_list)
     print(
         f"\nStandard RAG Results - EM: {em2:.3f}, F1: {f1_2:.3f}, Latency: {latency2:.3f}s per query"
     )

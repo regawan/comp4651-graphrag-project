@@ -110,9 +110,7 @@ class GraphRAGService:
                '\n\n=== kg_rels ===\n' +
                apoc.text.join(
                     [r IN rels |
-                        startNode(r).name + ' - ' + type(r) +
-                        '(' + coalesce(r.details, '') + ')' +
-                        ' -> ' + endNode(r).name
+                        startNode(r).name + ' - ' + type(r) + ' -> ' + endNode(r).name
                     ],
                     '\n---\n'
                ) AS info
@@ -132,7 +130,6 @@ class GraphRAGService:
         Run the KG builder pipeline with a list of general text documents and store the resulting graph in Neo4j.
         """
         self._ensure_vector_index(embedding_dimension)
-
         for doc in documents:
             doc_id = doc["doc_id"]
             text = doc["text"]
@@ -143,7 +140,7 @@ class GraphRAGService:
 
             print(f"Ingesting text document: {doc_id}")
             result = await self.kg_builder.run_async(
-                raw_text=text,  # NEW: use raw_text instead of file_path
+                text=text,
                 document_metadata={"source_id": doc_id},
             )
             print(f"KG builder result for {doc_id}: {result}")
