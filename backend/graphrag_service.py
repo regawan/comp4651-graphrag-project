@@ -7,6 +7,7 @@ from neo4j_graphrag.embeddings import VertexAIEmbeddings
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.llm import VertexAILLM
+from neo4j_graphrag.retrievers import VectorRetriever
 from neo4j_graphrag.retrievers import VectorCypherRetriever
 from vertexai.generative_models import GenerationConfig
 from backend.graphrag_config import GraphRAGConfig
@@ -15,19 +16,20 @@ from backend.graphrag_config import GraphRAGConfig
 class GraphRAGService:
     """
     High-level GraphRAG service. Provides the following methods:
-    - __init__(config: GraphRAGConfig)
+    - __init__(config: GraphRAGConfig, from_pdf: bool)
     - async build_knowledge_graph_from_pdfs(pdf_file_paths: list[str])
     - query(question: str, top_k: int = 5) -> str
     - list_documents(limit: int = 100)
     - delete_document(document_id: str)
 
     Can be used as follows:
+        | from_pdf = True
         | config = GraphRAGConfig.from_env()
-        | graphrag = GraphRAGService(config)
+        | graphrag = GraphRAGService(config, from_pdf)
         | answer = graphrag.query("<Question>")
     """
 
-    def __init__(self, config: GraphRAGConfig) -> None:
+    def __init__(self, config: GraphRAGConfig, from_pdf: bool = True) -> None:
         self.config = config
 
         # Vertex AI setup: initialize client with credentials
@@ -48,9 +50,7 @@ class GraphRAGService:
         )
 
         # Generation config, LLM and Embeddings setup
-        generation_config = GenerationConfig(
-            temperature=self.config.llm_temperature
-        )
+        generation_config = GenerationConfig(temperature=self.config.llm_temperature)
 
         self.llm = VertexAILLM(
             model_name=self.config.llm_model_name,
@@ -67,13 +67,25 @@ class GraphRAGService:
             llm=self.llm,
             driver=self.neo4j_driver,
             embedder=self.embedder,
-            from_pdf=True,
+            from_pdf=from_pdf,
         )
 
         # Create retriever and define final RAG object
         self.retriever = self._create_vector_cypher_retriever()
         self.rag = GraphRAG(llm=self.llm, retriever=self.retriever)
 
+    def _create_vector_retriever(self) -> VectorRetriever:
+        """
+        Private helper method to create a VectorRetriever that:
+        - uses the text embedding index,
+        - returns a text context string.
+        """
+        return VectorRetriever(
+            driver=self.neo4j_driver,
+            index_name=self.config.text_index_name,
+            embedder=self.embedder,
+            return_properties=["text"],
+        )
 
     def _create_vector_cypher_retriever(self) -> VectorCypherRetriever:
         """
@@ -113,8 +125,32 @@ class GraphRAGService:
             retrieval_query=retrieval_query,
         )
 
+    async def build_knowledge_graph_from_texts(
+        self, documents: list[dict], embedding_dimension: int = 768
+    ) -> None:
+        """
+        Run the KG builder pipeline with a list of general text documents and store the resulting graph in Neo4j.
+        """
+        self._ensure_vector_index(embedding_dimension)
 
-    async def build_knowledge_graph_from_pdfs(self, pdf_file_paths: list[str], embedding_dimension: int = 768) -> None:
+        for doc in documents:
+            doc_id = doc["doc_id"]
+            text = doc["text"]
+
+            if self._document_exists(doc_id):
+                print(f"Skipping already ingested document: {doc_id}")
+                continue
+
+            print(f"Ingesting text document: {doc_id}")
+            result = await self.kg_builder.run_async(
+                raw_text=text,  # NEW: use raw_text instead of file_path
+                document_metadata={"source_id": doc_id},
+            )
+            print(f"KG builder result for {doc_id}: {result}")
+
+    async def build_knowledge_graph_from_pdfs(
+        self, pdf_file_paths: list[str], embedding_dimension: int = 768
+    ) -> None:
         """
         Run the KG builder pipeline with a list of PDFs and store the resulting graph in Neo4j.
         """
@@ -129,9 +165,10 @@ class GraphRAGService:
                 continue
 
             print(f"Processing PDF: {path} (doc_id={doc_id})")
-            result = await self.kg_builder.run_async(file_path=path, document_metadata={"source_id": doc_id})
+            result = await self.kg_builder.run_async(
+                file_path=path, document_metadata={"source_id": doc_id}
+            )
             print(f"KG builder result for {path}: {result}")
-
 
     def _ensure_vector_index(self, dimension: int = 768):
         """
@@ -152,7 +189,6 @@ class GraphRAGService:
                 dim=dimension,
             )
 
-
     def _document_exists(self, doc_id: str) -> bool:
         """
         Return True if a Document with this id (source_id or path) exists.
@@ -165,7 +201,6 @@ class GraphRAGService:
         with self.neo4j_driver.session() as session:
             record = session.run(query, doc_id=doc_id).single()
             return bool(record["exists"])
-
 
     def query(self, question: str, top_k: int = 5) -> str:
         """
@@ -181,7 +216,6 @@ class GraphRAGService:
         )
         return result.answer
 
-
     def list_documents(self, limit: int = 100):
         """
         Return a list of indexed documents with basic stats.
@@ -196,7 +230,6 @@ class GraphRAGService:
         with self.neo4j_driver.session() as session:
             result = session.run(query, limit=limit)
             return [record.data() for record in result]
-
 
     def delete_document(self, document_id: str):
         with self.neo4j_driver.session() as session:

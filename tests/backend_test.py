@@ -6,13 +6,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 async def main():
     config = GraphRAGConfig.from_env()
-    service = GraphRAGService(config)
+    service = GraphRAGService(config, True)
 
-    #question = "How is precision medicine applied to Lupus? Provide the answer in list format."
-    #answer = service.query(question)
-    #print("Answer:\n", answer)
+    # question = "How is precision medicine applied to Lupus? Provide the answer in list format."
+    # answer = service.query(question)
+    # print("Answer:\n", answer)
 
     service.delete_document(".pdf")
 
@@ -28,3 +29,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
