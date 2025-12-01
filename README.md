@@ -1,11 +1,9 @@
 # GraphRAG using Neo4j
+A project developed for HKUST COMP4651 by Group 6: Paul Bauer, Andreas Wager, Sophie Dinh, and Mathys Muganga.  
+The full repository is available on [GitHub](https://github.com/regawan/comp4651-graphrag-project).
 
-## Model provider: Google Vertex AI
-
-To use and authenticate model:
-
-`pip install neo4j_graphrag[google]`  
-`export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
+## System Overview
+![System Overview](img/SystemArchitecture.png)
 
 ## Prerequisites
 - AWS EC2 instance (Ubuntu, t3.medium recommended)
@@ -86,3 +84,17 @@ from any browser or tools like Postman.
   }
   ```
   The deletion can be verified by rerunning the list documents endpoint.
+
+
+### Information Retrieval
+- **Query Information**: Open the `POST /graphrag/query` endpoint, add a question string and additionally adjust the
+  top-k parameter to refine your search. The response has the format:
+  ```
+  {
+  "answer": "string"
+  }
+  ```
+
+
+### API Endpoints Overview
+![API Endpoints Overview](img/RestEndpoints.png)
